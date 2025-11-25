@@ -16,6 +16,7 @@ from google.genai import types
 
 # Import utilities
 import sys
+
 sys.path.insert(0, str(Path(__file__).parent.parent))
 from utils import (
     get_logger,
@@ -23,7 +24,7 @@ from utils import (
     validate_api_key,
     validate_timestamp,
     ValidationError,
-    exponential_backoff
+    exponential_backoff,
 )
 
 logger = get_logger(__name__)
@@ -31,8 +32,14 @@ logger = get_logger(__name__)
 
 class GeminiExtractor:
     """Extract subtitles from ATC videos using Gemini API."""
-    
-    def __init__(self, api_key: Optional[str] = None, model: str = "gemini-2.5-pro", max_retries: int = 3):
+
+    def __init__(
+        self,
+        api_key: Optional[str] = None,
+        model: str = "gemini-2.5-pro",
+        max_retries: int = 3,
+        uppercase_transcripts: bool = True,
+    ):
         """
         Initialize the Gemini extractor.
 
@@ -40,14 +47,17 @@ class GeminiExtractor:
             api_key: Gemini API key. If None, reads from GEMINI_API_KEY env var.
             model: Gemini model to use. Default is "gemini-2.5-pro".
             max_retries: Maximum number of retry attempts for API calls.
+            uppercase_transcripts: Whether to convert transcripts to uppercase. Default is True.
 
         Raises:
             ValidationError: If API key is invalid or missing
         """
-        self.api_key = api_key or os.environ.get('GEMINI_API_KEY')
+        self.api_key = api_key or os.environ.get("GEMINI_API_KEY")
         if not self.api_key:
             logger.error("API key not provided")
-            raise ValidationError("API key must be provided or set in GEMINI_API_KEY environment variable")
+            raise ValidationError(
+                "API key must be provided or set in GEMINI_API_KEY environment variable"
+            )
 
         if not validate_api_key(self.api_key):
             logger.error("Invalid API key format")
@@ -55,10 +65,13 @@ class GeminiExtractor:
 
         self.model = f"models/{model}"
         self.max_retries = max_retries
+        self.uppercase_transcripts = uppercase_transcripts
         self.client = genai.Client(api_key=self.api_key)
 
-        logger.info(f"Initialized GeminiExtractor with model {model}")
-        
+        logger.info(
+            f"Initialized GeminiExtractor with model {model}, uppercase={uppercase_transcripts}"
+        )
+
         self.prompt = """Analyze this video carefully and extract ALL on-screen text/subtitles with their timestamps.
 
 The video shows ATC (Air Traffic Control) communications with text overlays showing what is being said.
@@ -74,8 +87,9 @@ Format your response as a structured list like this:
 [00:12 - 00:14]
 [exact text content here]
 
-Extract EVERY text segment that appears in the video. Be thorough and accurate with timestamps."""
-    
+Extract EVERY text segment that appears in the video. Be thorough and accurate with timestamps.
+Note : Don't include the speaker labels or any extra commentary, only the on-screen text."""
+
     def extract_video_id(self, url: str) -> str:
         """
         Extract video ID from YouTube URL.
@@ -97,64 +111,80 @@ Extract EVERY text segment that appears in the video. Be thorough and accurate w
             return url.split("v=")[1].split("&")[0]
         else:
             return url.split("/")[-1]
-    
+
     def parse_response(self, response_text: str) -> List[Dict]:
         """
         Parse Gemini API response to extract structured segments.
-        
+
         Args:
             response_text: Raw text response from Gemini API
-            
+
         Returns:
             List of segment dictionaries
         """
         segments = []
-        lines = response_text.strip().split('\n')
-        
+        lines = response_text.strip().split("\n")
+
         i = 0
         segment_num = 1
-        
+
         while i < len(lines):
             line = lines[i].strip()
-            
+
             # Match timestamp pattern [MM:SS - MM:SS]
-            timestamp_match = re.match(r'\[(\d+):(\d+)\s*-\s*(\d+):(\d+)\]', line)
-            
+            timestamp_match = re.match(r"\[(\d+):(\d+)\s*-\s*(\d+):(\d+)\]", line)
+
             if timestamp_match:
-                start_min, start_sec, end_min, end_sec = map(int, timestamp_match.groups())
+                start_min, start_sec, end_min, end_sec = map(
+                    int, timestamp_match.groups()
+                )
                 start_time = start_min * 60 + start_sec
                 end_time = end_min * 60 + end_sec
-                
+
                 # Collect transcript lines until next timestamp
                 transcript_lines = []
                 i += 1
-                while i < len(lines) and not re.match(r'\[(\d+):(\d+)\s*-\s*(\d+):(\d+)\]', lines[i].strip()):
+                while i < len(lines) and not re.match(
+                    r"\[(\d+):(\d+)\s*-\s*(\d+):(\d+)\]", lines[i].strip()
+                ):
                     if lines[i].strip():
                         transcript_lines.append(lines[i].strip())
                     i += 1
-                
-                transcript = ' '.join(transcript_lines)
+
+                transcript = " ".join(transcript_lines)
+                # Convert to uppercase if configured
+                if self.uppercase_transcripts:
+                    transcript = transcript.upper()
 
                 # Validate timestamp
                 if validate_timestamp(start_time, end_time):
-                    segments.append({
-                        'segment_num': segment_num,
-                        'start_time': start_time,
-                        'end_time': end_time,
-                        'duration': end_time - start_time,
-                        'timestamp_range': f"[{start_min:02d}:{start_sec:02d} - {end_min:02d}:{end_sec:02d}]",
-                        'transcript': transcript
-                    })
+                    segments.append(
+                        {
+                            "segment_num": segment_num,
+                            "start_time": start_time,
+                            "end_time": end_time,
+                            "duration": end_time - start_time,
+                            "timestamp_range": f"[{start_min:02d}:{start_sec:02d} - {end_min:02d}:{end_sec:02d}]",
+                            "transcript": transcript,
+                        }
+                    )
                     segment_num += 1
                 else:
-                    logger.warning(f"Invalid timestamp range: {start_time} - {end_time}")
+                    logger.warning(
+                        f"Invalid timestamp range: {start_time} - {end_time}"
+                    )
             else:
                 i += 1
-        
+
         return segments
-    
+
     @exponential_backoff(max_retries=3, initial_delay=2.0, exceptions=(Exception,))
-    def extract_subtitles(self, video_url: str, save_raw: bool = True, output_dir: str = "data/transcripts") -> Dict:
+    def extract_subtitles(
+        self,
+        video_url: str,
+        save_raw: bool = True,
+        output_dir: str = "data/transcripts",
+    ) -> Dict:
         """
         Extract subtitles from a YouTube video.
 
@@ -180,17 +210,16 @@ Extract EVERY text segment that appears in the video. Be thorough and accurate w
             contents=types.Content(
                 parts=[
                     types.Part(file_data=types.FileData(file_uri=video_url)),
-                    types.Part(text=self.prompt)
+                    types.Part(text=self.prompt),
                 ]
-            )
+            ),
         )
-
 
         # Save raw response if requested
         if save_raw:
             os.makedirs(output_dir, exist_ok=True)
             raw_file = os.path.join(output_dir, f"{video_id}_raw.txt")
-            with open(raw_file, 'w', encoding='utf-8') as f:
+            with open(raw_file, "w", encoding="utf-8") as f:
                 f.write(response.text)
             logger.debug(f"Saved raw response to {raw_file}")
 
@@ -200,23 +229,27 @@ Extract EVERY text segment that appears in the video. Be thorough and accurate w
 
         # Create result dictionary
         result = {
-            'video_id': video_id,
-            'video_url': video_url,
-            'total_segments': len(segments),
-            'segments': segments
+            "video_id": video_id,
+            "video_url": video_url,
+            "total_segments": len(segments),
+            "segments": segments,
         }
 
         # Save JSON
         os.makedirs(output_dir, exist_ok=True)
         json_file = os.path.join(output_dir, f"{video_id}.json")
-        with open(json_file, 'w', encoding='utf-8') as f:
+        with open(json_file, "w", encoding="utf-8") as f:
             json.dump(result, f, indent=2, ensure_ascii=False)
 
         logger.info(f"Saved transcript to {json_file}")
         return result
-    
-    def extract_batch(self, video_urls: List[str], delay: float = 2.0,
-                     output_dir: str = "data/transcripts") -> List[Dict]:
+
+    def extract_batch(
+        self,
+        video_urls: List[str],
+        delay: float = 2.0,
+        output_dir: str = "data/transcripts",
+    ) -> List[Dict]:
         """
         Extract subtitles from multiple videos with progress tracking.
 
@@ -239,8 +272,10 @@ Extract EVERY text segment that appears in the video. Be thorough and accurate w
                 # Skip if already processed
                 json_file = os.path.join(output_dir, f"{video_id}.json")
                 if os.path.exists(json_file):
-                    logger.info(f"[{i}/{len(video_urls)}] {video_id} - Already processed, skipping")
-                    with open(json_file, 'r') as f:
+                    logger.info(
+                        f"[{i}/{len(video_urls)}] {video_id} - Already processed, skipping"
+                    )
+                    with open(json_file, "r") as f:
                         results.append(json.load(f))
                     continue
 
@@ -248,7 +283,9 @@ Extract EVERY text segment that appears in the video. Be thorough and accurate w
 
                 result = self.extract_subtitles(url, output_dir=output_dir)
                 results.append(result)
-                logger.info(f"  ✓ Successfully extracted {result['total_segments']} segments")
+                logger.info(
+                    f"  ✓ Successfully extracted {result['total_segments']} segments"
+                )
 
                 # Delay between requests to respect rate limits
                 if i < len(video_urls):
@@ -256,14 +293,16 @@ Extract EVERY text segment that appears in the video. Be thorough and accurate w
 
             except ValidationError as e:
                 logger.error(f"  ✗ Validation error for {url}: {str(e)}")
-                failed_videos.append({'url': url, 'error': str(e)})
+                failed_videos.append({"url": url, "error": str(e)})
             except Exception as e:
                 logger.error(f"  ✗ Error processing {url}: {str(e)}")
-                failed_videos.append({'url': url, 'error': str(e)})
+                failed_videos.append({"url": url, "error": str(e)})
                 continue
 
         # Log summary
-        logger.info(f"Batch extraction complete: {len(results)} successful, {len(failed_videos)} failed")
+        logger.info(
+            f"Batch extraction complete: {len(results)} successful, {len(failed_videos)} failed"
+        )
         if failed_videos:
             logger.warning(f"Failed videos: {[v['url'] for v in failed_videos]}")
 
@@ -273,7 +312,7 @@ Extract EVERY text segment that appears in the video. Be thorough and accurate w
 if __name__ == "__main__":
     # Example usage
     extractor = GeminiExtractor()
-    
+
     # Single video
     result = extractor.extract_subtitles("https://www.youtube.com/watch?v=94VPOXc2bEM")
     print(f"Extracted {result['total_segments']} segments from {result['video_id']}")

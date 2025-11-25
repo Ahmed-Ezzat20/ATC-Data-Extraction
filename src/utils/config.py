@@ -19,6 +19,7 @@ class GeminiConfig:
     request_delay: float = 2.0
     max_retries: int = 3
     retry_delay: float = 1.0
+    uppercase_transcripts: bool = True
 
 
 @dataclass
@@ -82,7 +83,8 @@ class Config:
             model=gemini_dict.get('model', 'gemini-2.5-pro'),
             request_delay=gemini_dict.get('request_delay', 2.0),
             max_retries=gemini_dict.get('max_retries', 3),
-            retry_delay=gemini_dict.get('retry_delay', 1.0)
+            retry_delay=gemini_dict.get('retry_delay', 1.0),
+            uppercase_transcripts=gemini_dict.get('uppercase_transcripts', True)
         )
 
         # Parse Audio configuration
@@ -140,7 +142,8 @@ class Config:
                 'model': self.gemini.model,
                 'request_delay': self.gemini.request_delay,
                 'max_retries': self.gemini.max_retries,
-                'retry_delay': self.gemini.retry_delay
+                'retry_delay': self.gemini.retry_delay,
+                'uppercase_transcripts': self.gemini.uppercase_transcripts
             },
             'audio': {
                 'format': self.audio.format,
