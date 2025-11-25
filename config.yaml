@@ -1,0 +1,20 @@
+gemini:
+  api_key: ${GEMINI_API_KEY}
+  model: gemini-2.5-pro
+  request_delay: 2.0
+  max_retries: 3
+  retry_delay: 1.0
+
+audio:
+  format: wav
+  sample_rate: 44100
+  channels: 2
+  bit_depth: 16
+
+paths:
+  transcripts: data/transcripts
+  raw_audio: data/raw_audio
+  segments: data/audio_segments
+  visualizations: data/visualizations
+  logs: logs
+  checkpoints: data/checkpoints

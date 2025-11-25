@@ -11,7 +11,7 @@ import subprocess
 import sys
 from pathlib import Path
 from datetime import datetime
-from gemini_extractor import GeminiExtractor
+from .gemini_extractor import GeminiExtractor
 
 
 def get_playlist_videos(playlist_url: str) -> list:

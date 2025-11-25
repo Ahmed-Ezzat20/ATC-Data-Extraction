@@ -8,7 +8,7 @@ import matplotlib.pyplot as plt
 import matplotlib
 from pathlib import Path
 from typing import Dict, List
-from analyzer import Analyzer
+from .analyzer import Analyzer
 
 
 class Visualizer:

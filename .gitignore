@@ -56,7 +56,14 @@ data/audio_segments/*.mp3
 # API keys and secrets
 .env
 *.key
-config.yaml
+config_local.yaml
+
+# Checkpoints
+data/checkpoints/
+*.checkpoint
+
+# Logs
+logs/
 
 # Jupyter notebooks
 .ipynb_checkpoints/
@@ -69,3 +76,4 @@ htmlcov/
 
 # Documentation builds
 docs/_build/
+nul

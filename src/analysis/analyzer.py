@@ -27,30 +27,34 @@ class Analyzer:
     def load_all_transcripts(self) -> Tuple[List[Dict], List[Dict]]:
         """
         Load all transcript files.
-        
+
         Returns:
             Tuple of (all_segments, video_stats)
         """
         json_files = sorted(self.transcripts_dir.glob("*.json"))
         # Exclude raw files
         json_files = [f for f in json_files if not f.stem.endswith('_raw')]
-        
+
         all_segments = []
         video_stats = []
-        
+
         for json_file in json_files:
             with open(json_file, 'r') as f:
                 data = json.load(f)
-            
+
             video_duration = sum(seg['duration'] for seg in data['segments'])
             video_stats.append({
                 'video_id': data['video_id'],
                 'segments': len(data['segments']),
                 'duration': video_duration
             })
-            
-            all_segments.extend(data['segments'])
-        
+
+            # Add video_id to each segment for proper tracking
+            for segment in data['segments']:
+                segment_with_id = segment.copy()
+                segment_with_id['video_id'] = data['video_id']
+                all_segments.append(segment_with_id)
+
         return all_segments, video_stats
     
     def analyze_duration(self) -> Dict:
@@ -157,21 +161,24 @@ class Analyzer:
             writer.writeheader()
             
             for seg in segments:
-                # Assuming video_id is available in segment or needs to be tracked
+                # Generate proper audio filename with video_id
+                video_id = seg.get('video_id', 'unknown')
+                audio_filename = f"{video_id}_seg{seg['segment_num']:03d}.wav"
+
                 row = {
-                    'audio_filename': f"segment_{seg['segment_num']:03d}.wav",
+                    'audio_filename': audio_filename,
                     'transcription': seg['transcript']
                 }
-                
+
                 if detailed:
                     row.update({
-                        'video_id': 'unknown',  # Would need to track this
+                        'video_id': video_id,
                         'segment_num': seg['segment_num'],
                         'start_time': seg['start_time'],
                         'duration': seg['duration'],
                         'timestamp_range': seg['timestamp_range']
                     })
-                
+
                 writer.writerow(row)
     
     def generate_report(self, output_file: str = "data/analysis_report.txt"):
