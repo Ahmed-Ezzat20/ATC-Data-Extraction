@@ -1,0 +1,71 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual environments
+venv/
+ENV/
+env/
+.venv
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Data directories (exclude large files)
+data/transcripts/*.json
+data/transcripts/*.txt
+data/raw_audio/*.webm
+data/raw_audio/*.mp3
+data/raw_audio/*.wav
+data/audio_segments/*.wav
+data/audio_segments/*.mp3
+
+# Keep directory structure
+!data/transcripts/.gitkeep
+!data/raw_audio/.gitkeep
+!data/audio_segments/.gitkeep
+
+# Output files
+*.csv
+*.log
+*.zip
+
+# API keys and secrets
+.env
+*.key
+config.yaml
+
+# Jupyter notebooks
+.ipynb_checkpoints/
+*.ipynb
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Documentation builds
+docs/_build/
