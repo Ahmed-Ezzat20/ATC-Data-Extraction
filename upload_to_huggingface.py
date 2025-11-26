@@ -124,6 +124,7 @@ This dataset contains audio segments of Air Traffic Control (ATC) communications
 
 The dataset consists of:
 - **Audio files**: `audio_segments/*.wav` - Segmented audio clips
+- **Transcript files**: `transcripts/*.json` - Full transcript data per video
 - **Transcriptions**: `all_segments.csv` - Basic audio-transcription pairs
 - **Detailed metadata**: `all_segments_detailed.csv` - Includes timing and video information
 
@@ -139,6 +140,25 @@ video_id_seg001.wav,"American 123 contact tower 118.3"
 ```csv
 audio_filename,transcription,video_id,segment_num,start_time,duration,timestamp_range
 video_id_seg001.wav,"American 123 contact tower 118.3",video_id,1,0.0,3.5,"0:00:00.0 - 0:00:03.5"
+```
+
+### Transcript JSON Format
+
+Each video has a JSON file in `transcripts/` with this structure:
+```json
+{
+  "video_id": "VIDEO_ID",
+  "video_url": "https://www.youtube.com/watch?v=VIDEO_ID",
+  "segments": [
+    {
+      "segment_num": 1,
+      "start_time": 0.0,
+      "duration": 3.5,
+      "transcript": "American 123 contact tower 118.3",
+      "timestamp_range": "0:00:00.0 - 0:00:03.5"
+    }
+  ]
+}
 ```
 
 ### Data Fields
@@ -358,6 +378,30 @@ def upload_dataset(repo_id, data_dir='data', private=False, create_if_not_exists
     else:
         print("[X] audio_segments directory not found")
         return False
+
+    # Upload transcript JSON files
+    print("\n" + "-" * 70)
+    print("Uploading transcript files...")
+
+    transcripts_dir = data_path / 'transcripts'
+    if transcripts_dir.exists():
+        # Filter out raw files
+        transcript_files = [f for f in transcripts_dir.glob('*.json')
+                          if not f.stem.endswith('_raw')]
+        print(f"Found {len(transcript_files)} transcript files")
+
+        # Upload transcripts folder
+        api.upload_folder(
+            folder_path=str(transcripts_dir),
+            path_in_repo="transcripts",
+            repo_id=repo_id,
+            repo_type="dataset",
+            allow_patterns="*.json",
+            ignore_patterns="*_raw.json"
+        )
+        print(f"[OK] Transcript files uploaded")
+    else:
+        print("[!] transcripts directory not found, skipping")
 
     # Upload analysis report (optional)
     report_path = data_path / 'analysis_report.txt'
