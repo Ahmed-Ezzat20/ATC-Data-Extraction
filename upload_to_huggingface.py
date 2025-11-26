@@ -146,19 +146,19 @@ video_id_seg001.wav,"American 123 contact tower 118.3",video_id,1,0.0,3.5,"0:00:
 
 Each video has a JSON file in `transcripts/` with this structure:
 ```json
-{
+{{
   "video_id": "VIDEO_ID",
   "video_url": "https://www.youtube.com/watch?v=VIDEO_ID",
   "segments": [
-    {
+    {{
       "segment_num": 1,
       "start_time": 0.0,
       "duration": 3.5,
       "transcript": "American 123 contact tower 118.3",
       "timestamp_range": "0:00:00.0 - 0:00:03.5"
-    }
+    }}
   ]
-}
+}}
 ```
 
 ### Data Fields
