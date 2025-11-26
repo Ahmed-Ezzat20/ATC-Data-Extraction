@@ -200,7 +200,7 @@ Transcription quality varies depending on:
 from datasets import load_dataset
 
 # Load the dataset
-dataset = load_dataset("{repo_id}")
+dataset = load_dataset("{{repo_id}}")
 
 # Access transcriptions
 for example in dataset['train']:
@@ -214,7 +214,7 @@ for example in dataset['train']:
 import pandas as pd
 
 # Load CSV
-df = pd.read_csv('hf://datasets/{repo_id}/all_segments.csv')
+df = pd.read_csv('hf://datasets/{{repo_id}}/all_segments.csv')
 
 # Access transcriptions
 print(df[['audio_filename', 'transcription']].head())
@@ -228,7 +228,7 @@ import json
 
 # Download a transcript file
 transcript_path = hf_hub_download(
-    repo_id="{repo_id}",
+    repo_id="{{repo_id}}",
     filename="transcripts/VIDEO_ID.json",
     repo_type="dataset"
 )
@@ -251,7 +251,7 @@ If you use this dataset, please cite:
   author={{Your Name}},
   year={{2024}},
   publisher={{Hugging Face}},
-  url={{https://huggingface.co/datasets/{repo_id}}}
+  url={{https://huggingface.co/datasets/{{repo_id}}}}
 }}
 ```
 
