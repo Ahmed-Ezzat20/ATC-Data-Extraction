@@ -352,9 +352,7 @@ def upload_dataset(repo_id, data_dir='data', private=False, create_if_not_exists
             folder_path=str(audio_segments_dir),
             path_in_repo="audio_segments",
             repo_id=repo_id,
-            repo_type="dataset",
-            multi_commits=True,
-            multi_commits_verbose=True
+            repo_type="dataset"
         )
         print(f"[OK] Audio segments uploaded")
     else:
