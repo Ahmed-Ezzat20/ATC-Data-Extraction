@@ -130,6 +130,7 @@ python preprocess_data.py --data-dir data \
 - Letter-to-phonetic (e.g., "N 1 2 3" → "NOVEMBER ONE TWO THREE")
 - Number-to-word (e.g., "350" → "THREE FIVE ZERO", "118.3" → "ONE ONE EIGHT DECIMAL THREE")
 - Uppercase normalization
+- Punctuation removal (e.g., "American 123, contact tower!" → "AMERICAN ONE TWO THREE CONTACT TOWER")
 - Tag removal (e.g., [GROUND], [AIR])
 - Transmission filtering (excludes [NO_ENG], [UNINTELLIGIBLE], etc.)
 
@@ -139,6 +140,7 @@ python preprocess_data.py --data-dir data \
 - `--no-phonetic-expansion`: Disable letter-to-phonetic conversion
 - `--no-number-expansion`: Disable number-to-word conversion
 - `--no-uppercase`: Disable uppercase conversion
+- `--no-punctuation-removal`: Disable punctuation removal
 - `--no-tag-removal`: Disable tag removal
 - `--no-filtering`: Disable transmission filtering
 - `--min-length N`: Minimum text length in words (default: 3)
@@ -206,7 +208,8 @@ The `ATCTextNormalizer` applies transformations in this order:
 4. Phonetic letter expansion (NATO alphabet)
 5. Number-to-word expansion (digit-by-digit)
 6. Spelling corrections
-7. Whitespace cleanup
+7. Punctuation removal
+8. Whitespace cleanup
 
 **Important**: Phonetic expansion only applies to single-letter words (e.g., "N" but not "NOVEMBER"). Runway designators like "27L" are handled specially: "27L" → "TWO SEVEN LEFT".
 

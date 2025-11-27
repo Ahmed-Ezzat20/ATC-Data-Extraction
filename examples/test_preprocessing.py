@@ -48,6 +48,12 @@ def test_normalizer():
 
         ("rodger that, cleard for aproach",
          "Spelling corrections"),
+
+        ("American 123, contact tower on 118.3!",
+         "Punctuation removal"),
+
+        ("Roger that... cleared for takeoff???",
+         "Multiple punctuation marks"),
     ]
 
     for i, (text, description) in enumerate(test_cases, 1):

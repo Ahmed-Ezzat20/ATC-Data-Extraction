@@ -14,7 +14,8 @@ The `ATCTextNormalizer` class performs the following transformations:
 4. **Phonetic Letter Expansion**: Converts single letters to NATO phonetic alphabet
 5. **Number Expansion**: Converts digits to words (digit-by-digit)
 6. **Spelling Corrections**: Fixes common ATC terminology misspellings
-7. **Whitespace Cleanup**: Normalizes spacing
+7. **Punctuation Removal**: Removes all punctuation marks (e.g., commas, periods, exclamation marks)
+8. **Whitespace Cleanup**: Normalizes spacing
 
 ### Transmission Filtering (`filters.py`)
 
@@ -52,6 +53,12 @@ text = "Runway 27L taxi via Alpha"
 normalized = normalizer.normalize_text(text)
 print(normalized)
 # Output: RUNWAY TWO SEVEN LEFT TAXI VIA ALPHA
+
+# Example 4: Punctuation removal
+text = "American 123, contact tower on 118.3!"
+normalized = normalizer.normalize_text(text)
+print(normalized)
+# Output: AMERICAN ONE TWO THREE CONTACT TOWER ON ONE ONE EIGHT DECIMAL THREE
 ```
 
 ### Custom Configuration
@@ -61,6 +68,7 @@ print(normalized)
 normalizer = ATCTextNormalizer(
     expand_phonetic_letters=False,  # Keep single letters as-is
     expand_numbers=False,            # Keep numbers as-is
+    remove_punctuation=False,        # Keep punctuation
     uppercase=False                  # Preserve original case
 )
 ```
@@ -263,7 +271,8 @@ python preprocess_data.py --data-dir data --output-dir data/preprocessed
 # Disable specific features
 python preprocess_data.py --data-dir data \
     --no-phonetic-expansion \
-    --no-number-expansion
+    --no-number-expansion \
+    --no-punctuation-removal
 
 # Custom filtering
 python preprocess_data.py --data-dir data \

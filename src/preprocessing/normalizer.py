@@ -95,6 +95,7 @@ class ATCTextNormalizer:
         expand_numbers: bool = True,
         uppercase: bool = True,
         remove_tags: bool = True,
+        remove_punctuation: bool = True,
         custom_corrections: Optional[Dict[str, str]] = None
     ):
         """
@@ -107,6 +108,7 @@ class ATCTextNormalizer:
             expand_numbers: Convert digits to words
             uppercase: Convert all text to uppercase
             remove_tags: Remove non-critical tags
+            remove_punctuation: Remove punctuation marks
             custom_corrections: Additional custom spelling corrections
         """
         self.apply_spelling_corrections = apply_spelling_corrections
@@ -115,6 +117,7 @@ class ATCTextNormalizer:
         self.expand_numbers = expand_numbers
         self.uppercase = uppercase
         self.remove_tags = remove_tags
+        self.remove_punctuation = remove_punctuation
 
         # Merge custom corrections
         self.spelling_corrections = self.SPELLING_CORRECTIONS.copy()
@@ -158,7 +161,11 @@ class ATCTextNormalizer:
         if self.apply_spelling_corrections:
             text = self._apply_spelling_corrections(text)
 
-        # 7. Clean up extra whitespace
+        # 7. Remove punctuation
+        if self.remove_punctuation:
+            text = self._remove_punctuation(text)
+
+        # 8. Clean up extra whitespace
         text = self._clean_whitespace(text)
 
         return text
@@ -283,6 +290,21 @@ class ATCTextNormalizer:
             corrected.append(corrected_word)
 
         return ' '.join(corrected)
+
+    def _remove_punctuation(self, text: str) -> str:
+        """
+        Remove punctuation marks from text.
+
+        Args:
+            text: Input text
+
+        Returns:
+            Text with punctuation removed
+        """
+        # Remove all punctuation except spaces
+        # Keep alphanumeric characters and spaces only
+        text = re.sub(r'[^\w\s]', '', text)
+        return text
 
     def _clean_whitespace(self, text: str) -> str:
         """

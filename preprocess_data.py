@@ -299,7 +299,8 @@ class DataPreprocessor:
             )
             f.write(f"Number Expansion: {self.normalizer.expand_numbers}\n")
             f.write(f"Uppercase Conversion: {self.normalizer.uppercase}\n")
-            f.write(f"Tag Removal: {self.normalizer.remove_tags}\n\n")
+            f.write(f"Tag Removal: {self.normalizer.remove_tags}\n")
+            f.write(f"Punctuation Removal: {self.normalizer.remove_punctuation}\n\n")
 
             f.write("FILTERING SETTINGS\n")
             f.write("-" * 70 + "\n")
@@ -404,6 +405,11 @@ def main():
         "--no-tag-removal", action="store_true", help="Disable tag removal"
     )
     parser.add_argument(
+        "--no-punctuation-removal",
+        action="store_true",
+        help="Disable punctuation removal"
+    )
+    parser.add_argument(
         "--no-filtering", action="store_true", help="Disable transmission filtering"
     )
     parser.add_argument(
@@ -429,6 +435,7 @@ def main():
         expand_numbers=not args.no_number_expansion,
         uppercase=not args.no_uppercase,
         remove_tags=not args.no_tag_removal,
+        remove_punctuation=not args.no_punctuation_removal,
     )
 
     # Initialize filter
