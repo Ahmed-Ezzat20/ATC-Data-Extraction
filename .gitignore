@@ -49,7 +49,6 @@ data/audio_segments/*.mp3
 !data/audio_segments/.gitkeep
 
 # Output files
-*.csv
 *.log
 *.zip
 
