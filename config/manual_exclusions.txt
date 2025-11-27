@@ -1,0 +1,11 @@
+# Manual Exclusions for ATC Preprocessing
+# One exclusion per line
+# Lines starting with # are comments
+# Text matching will be case-insensitive
+
+# Example exclusions (uncomment and modify as needed):
+# [MUSIC]
+# [BACKGROUND NOISE]
+# TEST MESSAGE
+# IGNORE THIS
+
