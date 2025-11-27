@@ -409,7 +409,7 @@ def main():
     parser.add_argument(
         "--min-length",
         type=int,
-        default=3,
+        default=0,
         help="Minimum text length in words (default: 3)",
     )
     parser.add_argument(
