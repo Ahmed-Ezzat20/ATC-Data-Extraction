@@ -535,7 +535,13 @@ CC-BY-4.0
 
     def upload(self, parquet_files: Dict[str, Path], stats: dict) -> bool:
         """
-        Upload dataset to Hugging Face.
+        Upload dataset to Hugging Face using upload_folder.
+
+        This method is more reliable than upload_file because:
+        - No 60-second timeout limit
+        - Automatic retry logic for network interruptions
+        - Resumable uploads for large files
+        - Handles multi-GB files without stalling
 
         Args:
             parquet_files: Dictionary mapping split name to file path
@@ -564,74 +570,57 @@ CC-BY-4.0
             )
             print(f"[OK] Repository created")
 
-        # Create and upload README
-        print("\nUploading README...")
-        readme_path = self.create_dataset_card(stats)
-        self.api.upload_file(
-            path_or_fileobj=readme_path,
-            path_in_repo="README.md",
-            repo_id=self.repo_id,
-            repo_type="dataset"
-        )
-        print("[OK] README uploaded")
+        # Get output directory from first parquet file
+        output_dir = list(parquet_files.values())[0].parent
 
-        # Upload Parquet files with large file handling
-        print("\nUploading Parquet files...")
+        # Create README in the output directory
+        print("\nCreating dataset card...")
+        readme_path = output_dir / "README.md"
+        self.create_dataset_card(stats, str(readme_path))
 
-        # Check if we have large files (>500MB)
-        LARGE_FILE_THRESHOLD = 500 * 1024 * 1024  # 500MB
-        large_files = {name: path for name, path in parquet_files.items()
-                      if path.stat().st_size > LARGE_FILE_THRESHOLD}
-        small_files = {name: path for name, path in parquet_files.items()
-                      if path.stat().st_size <= LARGE_FILE_THRESHOLD}
-
-        # Upload small files with regular method
-        for split_name, file_path in small_files.items():
+        # Display file sizes
+        print("\nFiles to upload:")
+        print(f"  README.md")
+        for split_name, file_path in parquet_files.items():
             file_size_mb = file_path.stat().st_size / (1024 * 1024)
-            print(f"  Uploading {split_name}.parquet ({file_size_mb:.2f} MB)...")
+            print(f"  {split_name}.parquet ({file_size_mb:.2f} MB)")
 
-            self.api.upload_file(
-                path_or_fileobj=str(file_path),
-                path_in_repo=f"{split_name}.parquet",
+        total_size_mb = sum(f.stat().st_size for f in parquet_files.values()) / (1024 * 1024)
+        print(f"\nTotal upload size: {total_size_mb:.2f} MB")
+
+        # Use upload_folder - this is the most reliable method
+        # Benefits:
+        # - No timeout limits (unlike upload_file which has 60s timeout)
+        # - Automatic retries on network errors
+        # - Resumable for large files
+        # - Works for all file sizes
+        print("\nUploading dataset using upload_folder...")
+        print("This method is reliable and resumable for large files.")
+        print("Progress may pause briefly during processing - this is normal.\n")
+
+        try:
+            self.api.upload_folder(
+                folder_path=str(output_dir),
                 repo_id=self.repo_id,
-                repo_type="dataset"
+                repo_type="dataset",
+                allow_patterns=["*.parquet", "README.md"],
+                commit_message="Upload ATC dataset with train/validation/test splits",
             )
-            print(f"  [OK] {split_name}.parquet uploaded")
+            print(f"\n[OK] All files uploaded successfully")
 
-        # Upload large files with upload_large_folder for better reliability
-        if large_files:
-            import tempfile
-            import shutil
-
-            print(f"\n  Large files detected ({len(large_files)})")
-            print("  Using upload_large_folder for better reliability and resumability")
-
-            with tempfile.TemporaryDirectory() as temp_dir:
-                temp_path = Path(temp_dir)
-
-                # Copy large files to temp directory
-                for split_name, file_path in large_files.items():
-                    file_size_mb = file_path.stat().st_size / (1024 * 1024)
-                    print(f"  Preparing {split_name}.parquet ({file_size_mb:.2f} MB)...")
-                    shutil.copy(file_path, temp_path / f"{split_name}.parquet")
-
-                # Upload folder - this handles large files better with chunking
-                print(f"\n  Uploading large files from: {temp_path}")
-                print("  This may take a while for multi-GB files...")
-                print("  The upload is resumable if interrupted.\n")
-
-                try:
-                    self.api.upload_large_folder(
-                        folder_path=str(temp_path),
-                        repo_id=self.repo_id,
-                        repo_type="dataset",
-                        allow_patterns="*.parquet",
-                    )
-                    print(f"\n  [OK] All large files uploaded successfully")
-                except Exception as e:
-                    print(f"\n  [!] Error during large file upload: {e}")
-                    print("  Tip: You can resume the upload by running the script again")
-                    raise
+        except Exception as e:
+            print(f"\n[!] Error during upload: {e}")
+            print("\nTroubleshooting:")
+            print("1. Check your internet connection")
+            print("2. Verify you're authenticated: huggingface-cli whoami")
+            print("3. For very large files, you can also use Git LFS:")
+            print(f"   cd {output_dir}")
+            print("   git lfs install")
+            print(f"   huggingface-cli repo create {self.repo_id} --type dataset")
+            print(f"   git clone https://huggingface.co/datasets/{self.repo_id}")
+            print(f"   cp *.parquet README.md {self.repo_id}/")
+            print(f"   cd {self.repo_id} && git add . && git commit -m 'Upload dataset' && git push")
+            return False
 
         print("\n" + "="*70)
         print("UPLOAD COMPLETE")
