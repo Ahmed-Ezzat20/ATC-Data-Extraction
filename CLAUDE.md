@@ -147,17 +147,65 @@ python preprocess_data.py --data-dir data \
 - `--max-length N`: Maximum text length in words
 - `--manual-exclusions FILE`: Path to manual exclusions file
 
-### Data Upload
+### Dataset Preparation and Upload (Unified Workflow)
+
+**One command to do everything**: Split dataset + Export to Parquet + Upload to Hugging Face
 
 ```bash
-# Upload dataset to Hugging Face (CSV and transcripts only, no audio)
-python upload_to_huggingface_no_audio.py --repo-id "username/dataset-name"
+# Complete workflow: split, export, and upload
+python prepare_and_upload_dataset.py \
+    --repo-id "username/atc-dataset" \
+    --data-dir data/preprocessed \
+    --audio-dir data/audio_segments
 
-# For private repository
-python upload_to_huggingface_no_audio.py --repo-id "username/dataset-name" --private
+# Custom split ratios
+python prepare_and_upload_dataset.py \
+    --repo-id "username/atc-dataset" \
+    --data-dir data/preprocessed \
+    --audio-dir data/audio_segments \
+    --train-ratio 0.8 \
+    --val-ratio 0.1 \
+    --test-ratio 0.1
+
+# Only create Parquet files (no upload)
+python prepare_and_upload_dataset.py \
+    --repo-id "username/atc-dataset" \
+    --data-dir data/preprocessed \
+    --audio-dir data/audio_segments \
+    --no-upload
+
+# Private repository
+python prepare_and_upload_dataset.py \
+    --repo-id "username/atc-dataset" \
+    --data-dir data/preprocessed \
+    --audio-dir data/audio_segments \
+    --private
 ```
 
-Requires: `huggingface-cli login` first
+**What this script does**:
+1. ✅ Loads preprocessed transcripts
+2. ✅ Splits by video into train/validation/test (80/10/10 by default)
+3. ✅ Creates 3 Parquet files: `train.parquet`, `validation.parquet`, `test.parquet`
+4. ✅ Embeds audio files as binary data
+5. ✅ Auto-generates dataset card with statistics
+6. ✅ Uploads everything to Hugging Face
+
+**Split Strategy**:
+- Splits are by **video** (all segments from same video stay together)
+- Prevents data leakage across splits
+- Configurable ratios via command-line arguments
+- Reproducible with `--random-seed` parameter
+
+**Requirements**:
+- Login first: `huggingface-cli login`
+- Preprocessed data in `data/preprocessed/transcripts/`
+- Audio files in `data/audio_segments/`
+
+**Output Structure**:
+- `dataset_parquet/train.parquet`: Training set
+- `dataset_parquet/validation.parquet`: Validation set
+- `dataset_parquet/test.parquet`: Test set
+- Uploaded to HF as: `train.parquet`, `validation.parquet`, `test.parquet`
 
 ## Data Structures
 
@@ -194,6 +242,14 @@ After preprocessing, output in `data/preprocessed/`:
 - `all_segments.csv`: Preprocessed transcriptions
 - `all_segments_detailed.csv`: Includes both preprocessed and original transcriptions
 - `preprocessing_report.txt`: Statistics and configuration used
+
+### Parquet Dataset Structure
+Dataset split into 3 Parquet files (train/validation/test):
+- Each row = one audio segment
+- Columns: audio_filename, video_id, segment_num, transcription, original_transcription, audio (binary), start_time, duration, timestamp_range
+- Supports efficient filtering, slicing, and batch loading
+- Load with Hugging Face: `dataset = load_dataset('username/atc-dataset')`
+- Load with pandas: `df = pd.read_parquet('train.parquet')`
 
 ## Important Configuration Details
 
