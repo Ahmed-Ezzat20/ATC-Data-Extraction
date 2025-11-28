@@ -575,9 +575,18 @@ CC-BY-4.0
         )
         print("[OK] README uploaded")
 
-        # Upload Parquet files
+        # Upload Parquet files with large file handling
         print("\nUploading Parquet files...")
-        for split_name, file_path in parquet_files.items():
+
+        # Check if we have large files (>500MB)
+        LARGE_FILE_THRESHOLD = 500 * 1024 * 1024  # 500MB
+        large_files = {name: path for name, path in parquet_files.items()
+                      if path.stat().st_size > LARGE_FILE_THRESHOLD}
+        small_files = {name: path for name, path in parquet_files.items()
+                      if path.stat().st_size <= LARGE_FILE_THRESHOLD}
+
+        # Upload small files with regular method
+        for split_name, file_path in small_files.items():
             file_size_mb = file_path.stat().st_size / (1024 * 1024)
             print(f"  Uploading {split_name}.parquet ({file_size_mb:.2f} MB)...")
 
@@ -588,6 +597,41 @@ CC-BY-4.0
                 repo_type="dataset"
             )
             print(f"  [OK] {split_name}.parquet uploaded")
+
+        # Upload large files with upload_large_folder for better reliability
+        if large_files:
+            import tempfile
+            import shutil
+
+            print(f"\n  Large files detected ({len(large_files)})")
+            print("  Using upload_large_folder for better reliability and resumability")
+
+            with tempfile.TemporaryDirectory() as temp_dir:
+                temp_path = Path(temp_dir)
+
+                # Copy large files to temp directory
+                for split_name, file_path in large_files.items():
+                    file_size_mb = file_path.stat().st_size / (1024 * 1024)
+                    print(f"  Preparing {split_name}.parquet ({file_size_mb:.2f} MB)...")
+                    shutil.copy(file_path, temp_path / f"{split_name}.parquet")
+
+                # Upload folder - this handles large files better with chunking
+                print(f"\n  Uploading large files from: {temp_path}")
+                print("  This may take a while for multi-GB files...")
+                print("  The upload is resumable if interrupted.\n")
+
+                try:
+                    self.api.upload_large_folder(
+                        folder_path=str(temp_path),
+                        repo_id=self.repo_id,
+                        repo_type="dataset",
+                        allow_patterns="*.parquet",
+                    )
+                    print(f"\n  [OK] All large files uploaded successfully")
+                except Exception as e:
+                    print(f"\n  [!] Error during large file upload: {e}")
+                    print("  Tip: You can resume the upload by running the script again")
+                    raise
 
         print("\n" + "="*70)
         print("UPLOAD COMPLETE")
