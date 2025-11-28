@@ -268,7 +268,9 @@ class ATCTextNormalizer:
                 return ' '.join(self.NUMBER_WORDS.get(d, d) for d in number_str)
 
         # Match numbers (including decimals)
-        text = re.sub(r'\d+\.?\d*', expand_number_match, text)
+        # Pattern: match actual decimals (123.45) OR integers (123)
+        # This prevents matching periods that are just punctuation (e.g., "118.")
+        text = re.sub(r'\d+\.\d+|\d+', expand_number_match, text)
         return text
 
     def _apply_spelling_corrections(self, text: str) -> str:
