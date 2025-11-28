@@ -34,9 +34,9 @@ class DatasetPreparation:
         transcripts_dir: str,
         audio_dir: str,
         output_dir: str = "dataset_parquet",
-        train_ratio: float = 0.8,
-        val_ratio: float = 0.1,
-        test_ratio: float = 0.1,
+        train_ratio: float = 0.95,
+        val_ratio: float = 0.025,
+        test_ratio: float = 0.025,
         random_seed: int = 42,
         include_audio: bool = True
     ):
@@ -47,9 +47,9 @@ class DatasetPreparation:
             transcripts_dir: Directory containing transcript JSON files
             audio_dir: Directory containing audio WAV files
             output_dir: Output directory for Parquet files
-            train_ratio: Ratio for training set (default: 0.8)
-            val_ratio: Ratio for validation set (default: 0.1)
-            test_ratio: Ratio for test set (default: 0.1)
+            train_ratio: Ratio for training set (default: 0.95)
+            val_ratio: Ratio for validation set (default: 0.025)
+            test_ratio: Ratio for test set (default: 0.025)
             random_seed: Random seed for reproducibility
             include_audio: Whether to include audio in Parquet files
         """
@@ -627,20 +627,20 @@ def main():
     parser.add_argument(
         '--train-ratio',
         type=float,
-        default=0.8,
-        help='Training set ratio (default: 0.8)'
+        default=0.95,
+        help='Training set ratio (default: 0.95)'
     )
     parser.add_argument(
         '--val-ratio',
         type=float,
-        default=0.1,
-        help='Validation set ratio (default: 0.1)'
+        default=0.025,
+        help='Validation set ratio (default: 0.025)'
     )
     parser.add_argument(
         '--test-ratio',
         type=float,
-        default=0.1,
-        help='Test set ratio (default: 0.1)'
+        default=0.025,
+        help='Test set ratio (default: 0.025)'
     )
     parser.add_argument(
         '--random-seed',

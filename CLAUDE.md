@@ -184,7 +184,7 @@ python prepare_and_upload_dataset.py \
 
 **What this script does**:
 1. ✅ Loads preprocessed transcripts
-2. ✅ Splits by video into train/validation/test (80/10/10 by default)
+2. ✅ Splits by video into train/validation/test (95/2.5/2.5 by default)
 3. ✅ Creates 3 Parquet files: `train.parquet`, `validation.parquet`, `test.parquet`
 4. ✅ Embeds audio files as binary data
 5. ✅ Auto-generates dataset card with statistics
@@ -193,6 +193,7 @@ python prepare_and_upload_dataset.py \
 **Split Strategy**:
 - Splits are by **video** (all segments from same video stay together)
 - Prevents data leakage across splits
+- Default: 95% train, 2.5% validation, 2.5% test
 - Configurable ratios via command-line arguments
 - Reproducible with `--random-seed` parameter
 
