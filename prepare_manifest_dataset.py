@@ -20,9 +20,17 @@ import json
 import sys
 import shutil
 from pathlib import Path
-from typing import List, Dict, Tuple
+from typing import List, Dict
 from tqdm import tqdm
-import random
+
+# Add src to path
+sys.path.insert(0, str(Path(__file__).parent / 'src'))
+
+from dataset import (
+    load_transcripts,
+    split_videos,
+    DatasetStatistics,
+)
 
 
 class ManifestDatasetPreparation:
@@ -61,113 +69,8 @@ class ManifestDatasetPreparation:
         self.random_seed = random_seed
         self.copy_audio = copy_audio
 
-        # Validate split ratios
-        total_ratio = train_ratio + val_ratio + test_ratio
-        if not (0.99 < total_ratio < 1.01):
-            raise ValueError(f"Split ratios must sum to 1.0, got {total_ratio}")
-
-        random.seed(random_seed)
-
         # Statistics
-        self.stats = {
-            'total_videos': 0,
-            'total_segments': 0,
-            'train_videos': 0,
-            'train_segments': 0,
-            'val_videos': 0,
-            'val_segments': 0,
-            'test_videos': 0,
-            'test_segments': 0,
-            'missing_audio': 0,
-        }
-
-    def load_transcripts(self) -> Dict[str, List[Dict]]:
-        """
-        Load all transcript files grouped by video.
-
-        Returns:
-            Dictionary mapping video_id to list of segments
-        """
-        print("\n" + "="*70)
-        print("LOADING TRANSCRIPTS")
-        print("="*70)
-
-        transcript_files = sorted(self.transcripts_dir.glob("*.json"))
-        transcript_files = [f for f in transcript_files if not f.stem.endswith('_raw')]
-
-        if not transcript_files:
-            print("[!] No transcript files found")
-            return {}
-
-        print(f"Found {len(transcript_files)} transcript files")
-
-        videos_data = {}
-
-        for transcript_file in tqdm(transcript_files, desc="Loading transcripts"):
-            with open(transcript_file, 'r', encoding='utf-8') as f:
-                data = json.load(f)
-
-            video_id = data['video_id']
-            videos_data[video_id] = data['segments']
-
-        total_segments = sum(len(segments) for segments in videos_data.values())
-
-        print(f"Loaded {len(videos_data)} videos with {total_segments:,} total segments")
-
-        self.stats['total_videos'] = len(videos_data)
-        self.stats['total_segments'] = total_segments
-
-        return videos_data
-
-    def split_videos(self, videos_data: Dict[str, List[Dict]]) -> Tuple[List[str], List[str], List[str]]:
-        """
-        Split videos into train/validation/test sets.
-
-        Args:
-            videos_data: Dictionary mapping video_id to segments
-
-        Returns:
-            Tuple of (train_video_ids, val_video_ids, test_video_ids)
-        """
-        print("\n" + "="*70)
-        print("SPLITTING DATASET")
-        print("="*70)
-
-        video_ids = list(videos_data.keys())
-        random.shuffle(video_ids)
-
-        n_videos = len(video_ids)
-        n_train = int(n_videos * self.train_ratio)
-        n_val = int(n_videos * self.val_ratio)
-
-        train_videos = video_ids[:n_train]
-        val_videos = video_ids[n_train:n_train + n_val]
-        test_videos = video_ids[n_train + n_val:]
-
-        # Calculate statistics
-        train_segments = sum(len(videos_data[vid]) for vid in train_videos)
-        val_segments = sum(len(videos_data[vid]) for vid in val_videos)
-        test_segments = sum(len(videos_data[vid]) for vid in test_videos)
-
-        print(f"\nSplit configuration:")
-        print(f"  Random seed: {self.random_seed}")
-        print(f"  Train ratio: {self.train_ratio:.1%}")
-        print(f"  Validation ratio: {self.val_ratio:.1%}")
-        print(f"  Test ratio: {self.test_ratio:.1%}")
-
-        print(f"\nSplit results:")
-        print(f"  Train: {len(train_videos)} videos, {train_segments:,} segments")
-        print(f"  Validation: {len(val_videos)} videos, {val_segments:,} segments")
-        print(f"  Test: {len(test_videos)} videos, {test_segments:,} segments")
-
-        self.stats['train_videos'] = len(train_videos)
-        self.stats['train_segments'] = train_segments
-        self.stats['val_videos'] = len(val_videos)
-        self.stats['val_segments'] = val_segments
-        self.stats['test_videos'] = len(test_videos)
-        self.stats['test_segments'] = test_segments
-
-        return train_videos, val_videos, test_videos
+        self.stats = DatasetStatistics()
 
     def create_manifest(
         self,
@@ -206,7 +109,7 @@ class ManifestDatasetPreparation:
 
                 # Check if audio exists
                 if not original_audio_path.exists():
-                    self.stats['missing_audio'] += 1
+                    self.stats.missing_audio += 1
                     continue
 
                 # Determine output audio path
@@ -266,8 +169,23 @@ class ManifestDatasetPreparation:
         print("CREATING MANIFEST FILES")
         print("="*70)
 
-        # Split videos
-        train_videos, val_videos, test_videos = self.split_videos(videos_data)
+        # Split videos using shared utility
+        train_videos, val_videos, test_videos = split_videos(
+            videos_data,
+            self.train_ratio,
+            self.val_ratio,
+            self.test_ratio,
+            self.random_seed,
+            verbose=True
+        )
+
+        # Update statistics
+        self.stats.train_videos = len(train_videos)
+        self.stats.train_segments = sum(len(videos_data[vid]) for vid in train_videos)
+        self.stats.val_videos = len(val_videos)
+        self.stats.val_segments = sum(len(videos_data[vid]) for vid in val_videos)
+        self.stats.test_videos = len(test_videos)
+        self.stats.test_segments = sum(len(videos_data[vid]) for vid in test_videos)
 
         # Create output directory
         self.output_dir.mkdir(parents=True, exist_ok=True)
@@ -291,109 +209,79 @@ class ManifestDatasetPreparation:
             if manifest_entries:
                 self.write_manifest(manifest_entries, split_name)
 
-        if self.stats['missing_audio'] > 0:
-            print(f"\n[!] Warning: {self.stats['missing_audio']} audio files not found")
+        if self.stats.missing_audio > 0:
+            print(f"\n[!] Warning: {self.stats.missing_audio} audio files not found")
 
     def create_dataset_info(self):
         """Create dataset info file."""
         info_file = self.output_dir / "dataset_info.txt"
 
-        info_content = f"""ATC Dataset - Manifest Format
-{'='*70}
-
-Dataset Statistics:
-  Total videos: {self.stats['total_videos']}
-  Total segments: {self.stats['total_segments']:,}
-
-Split Breakdown:
-  Train:
-    Videos: {self.stats['train_videos']} ({self.stats['train_videos']/self.stats['total_videos']*100:.1f}%)
-    Segments: {self.stats['train_segments']:,} ({self.stats['train_segments']/self.stats['total_segments']*100:.1f}%)
-    File: train_manifest.json
-
-  Validation:
-    Videos: {self.stats['val_videos']} ({self.stats['val_videos']/self.stats['total_videos']*100:.1f}%)
-    Segments: {self.stats['val_segments']:,} ({self.stats['val_segments']/self.stats['total_segments']*100:.1f}%)
-    File: validation_manifest.json
-
-  Test:
-    Videos: {self.stats['test_videos']} ({self.stats['test_videos']/self.stats['total_videos']*100:.1f}%)
-    Segments: {self.stats['test_segments']:,} ({self.stats['test_segments']/self.stats['total_segments']*100:.1f}%)
-    File: test_manifest.json
-
-Configuration:
-  Random seed: {self.random_seed}
-  Audio copied: {self.copy_audio}
-  Audio paths: Relative to manifest file location
-  Missing audio files: {self.stats['missing_audio']:,}
-
-Manifest Format:
-  Each line is a JSON object with:
-  - audio_filepath: Path to WAV file
-  - text: Transcription
-  - duration: Duration in seconds
-
-Usage Example (Python):
-  import json
-
-  # Load manifest
-  with open('train_manifest.json', 'r') as f:
-      data = [json.loads(line) for line in f]
-
-  # Access first sample
-  sample = data[0]
-  print(f"Audio: {{sample['audio_filepath']}}")
-  print(f"Text: {{sample['text']}}")
-  print(f"Duration: {{sample['duration']}} seconds")
-
-Usage Example (NeMo):
-  from nemo.collections.asr.data import audio_to_text_dataset
-
-  dataset = audio_to_text_dataset.get_audio_to_text_char_dataset_from_manifest(
-      manifest_filepath='train_manifest.json',
-      labels=labels,
-      ...
-  )
-
-{'='*70}
-"""
-
         with open(info_file, 'w', encoding='utf-8') as f:
-            f.write(info_content)
+            f.write("="*70 + "\n")
+            f.write("ATC DATASET - MANIFEST FORMAT\n")
+            f.write("="*70 + "\n\n")
 
-        print(f"\n[OK] Dataset info created: {info_file}")
+            f.write("DATASET STATISTICS\n")
+            f.write("-"*70 + "\n")
+            f.write(f"Total Videos: {self.stats.total_videos}\n")
+            f.write(f"Total Segments: {self.stats.total_segments:,}\n\n")
 
-    def print_summary(self):
-        """Print dataset summary."""
+            f.write("SPLIT STATISTICS\n")
+            f.write("-"*70 + "\n")
+            f.write(f"Train: {self.stats.train_videos} videos, {self.stats.train_segments:,} segments\n")
+            f.write(f"Validation: {self.stats.val_videos} videos, {self.stats.val_segments:,} segments\n")
+            f.write(f"Test: {self.stats.test_videos} videos, {self.stats.test_segments:,} segments\n\n")
+
+            f.write("FILES\n")
+            f.write("-"*70 + "\n")
+            f.write("- train_manifest.json\n")
+            f.write("- validation_manifest.json\n")
+            f.write("- test_manifest.json\n")
+
+            if self.copy_audio:
+                f.write("- train_audio/\n")
+                f.write("- validation_audio/\n")
+                f.write("- test_audio/\n")
+
+            f.write("\n" + "="*70 + "\n")
+
+        print(f"\n[OK] Created dataset info: {info_file}")
+
+    def run(self):
+        """Run the manifest preparation pipeline."""
+        print("="*70)
+        print("ATC DATASET MANIFEST PREPARATION")
+        print("="*70)
+        print(f"Transcripts directory: {self.transcripts_dir.absolute()}")
+        print(f"Audio directory: {self.audio_dir.absolute()}")
+        print(f"Output directory: {self.output_dir.absolute()}")
+        print(f"Copy audio: {self.copy_audio}")
+
+        # Load transcripts using shared utility
+        videos_data = load_transcripts(self.transcripts_dir, return_grouped=True, verbose=True)
+
+        if not videos_data:
+            print("\n[X] No transcripts found")
+            return False
+
+        # Update statistics
+        self.stats.total_videos = len(videos_data)
+        self.stats.total_segments = sum(len(segments) for segments in videos_data.values())
+
+        # Create manifests
+        self.create_manifests(videos_data)
+
+        # Create dataset info
+        self.create_dataset_info()
+
+        # Print summary
         print("\n" + "="*70)
-        print("DATASET PREPARATION SUMMARY")
+        print("MANIFEST PREPARATION COMPLETE")
+        print("="*70)
+        print(f"Output directory: {self.output_dir.absolute()}")
         print("="*70)
 
-        print(f"\nTotal dataset:")
-        print(f"  Videos: {self.stats['total_videos']}")
-        print(f"  Segments: {self.stats['total_segments']:,}")
-
-        print(f"\nSplit breakdown:")
-        print(f"  Train: {self.stats['train_segments']:,} segments ({self.stats['train_segments']/self.stats['total_segments']*100:.1f}%)")
-        print(f"  Validation: {self.stats['val_segments']:,} segments ({self.stats['val_segments']/self.stats['total_segments']*100:.1f}%)")
-        print(f"  Test: {self.stats['test_segments']:,} segments ({self.stats['test_segments']/self.stats['total_segments']*100:.1f}%)")
-
-        if self.stats['missing_audio'] > 0:
-            print(f"\nWarning: {self.stats['missing_audio']:,} audio files not found")
-
-        print(f"\nOutput directory: {self.output_dir.absolute()}")
-        print(f"\nManifest files:")
-        print(f"  - train_manifest.json")
-        print(f"  - validation_manifest.json")
-        print(f"  - test_manifest.json")
-
-        if self.copy_audio:
-            print(f"\nAudio directories:")
-            print(f"  - train_audio/")
-            print(f"  - validation_audio/")
-            print(f"  - test_audio/")
-
-        print("="*70)
+        return True
 
 
 def main():
@@ -404,12 +292,12 @@ def main():
     parser.add_argument(
         '--data-dir',
         default='data/preprocessed',
-        help='Directory with preprocessed transcripts (default: data/preprocessed)'
+        help='Directory containing preprocessed transcripts (default: data/preprocessed)'
     )
     parser.add_argument(
         '--audio-dir',
         default='data/audio_segments',
-        help='Directory with audio files (default: data/audio_segments)'
+        help='Directory containing audio WAV files (default: data/audio_segments)'
     )
     parser.add_argument(
         '--output-dir',
@@ -443,47 +331,24 @@ def main():
     parser.add_argument(
         '--no-copy-audio',
         action='store_true',
-        help='Do not copy audio files (use original paths in manifest)'
+        help='Use absolute paths instead of copying audio files'
     )
 
     args = parser.parse_args()
 
-    # Check transcripts directory
+    # Check if transcripts directory exists
     transcripts_dir = Path(args.data_dir) / 'transcripts'
     if not transcripts_dir.exists():
+        # Try using data_dir directly
         transcripts_dir = Path(args.data_dir)
         if not transcripts_dir.exists():
             print(f"[X] Error: Transcripts directory not found: {transcripts_dir}")
             return 1
 
-    # Check audio directory
-    audio_dir = Path(args.audio_dir)
-    if not audio_dir.exists():
-        print(f"[X] Error: Audio directory not found: {audio_dir}")
-        return 1
-
-    print("="*70)
-    print("ATC DATASET PREPARATION - MANIFEST FORMAT")
-    print("="*70)
-    print(f"\nConfiguration:")
-    print(f"  Transcripts: {transcripts_dir}")
-    print(f"  Audio: {audio_dir}")
-    print(f"  Output: {args.output_dir}")
-    print(f"  Split: {args.train_ratio:.0%} train / {args.val_ratio:.0%} val / {args.test_ratio:.0%} test")
-    print(f"  Random seed: {args.random_seed}")
-    print(f"  Copy audio: {not args.no_copy_audio}")
-    print(f"  Audio paths: Relative to manifest file")
-
-    # Confirm
-    response = input("\nProceed? (yes/no): ").strip().lower()
-    if response not in ['yes', 'y']:
-        print("Cancelled.")
-        return 0
-
-    # Prepare dataset
-    prep = ManifestDatasetPreparation(
+    # Initialize preparation
+    preparation = ManifestDatasetPreparation(
         transcripts_dir=str(transcripts_dir),
-        audio_dir=str(audio_dir),
+        audio_dir=args.audio_dir,
         output_dir=args.output_dir,
         train_ratio=args.train_ratio,
         val_ratio=args.val_ratio,
@@ -492,24 +357,10 @@ def main():
         copy_audio=not args.no_copy_audio
     )
 
-    # Load transcripts
-    videos_data = prep.load_transcripts()
-    if not videos_data:
-        print("[X] No data to process")
-        return 1
+    # Run preparation
+    success = preparation.run()
 
-    # Create manifests
-    prep.create_manifests(videos_data)
-
-    # Create dataset info
-    prep.create_dataset_info()
-
-    # Print summary
-    prep.print_summary()
-
-    print("\n[OK] Dataset preparation complete!")
-
-    return 0
+    return 0 if success else 1
 
 
 if __name__ == "__main__":

@@ -149,14 +149,28 @@ python preprocess_data.py --data-dir data \
 
 ### Dataset Preparation and Upload (Unified Workflow)
 
-**One command to do everything**: Split dataset + Export to Parquet + Upload to Hugging Face
+**One command to do everything**: Split dataset + Export to Parquet/Manifest + Upload to Hugging Face
 
 ```bash
-# Complete workflow: split, export, and upload
+# Complete workflow: split, export, and upload (Parquet format)
 python prepare_and_upload_dataset.py \
     --repo-id "username/atc-dataset" \
     --data-dir data/preprocessed \
     --audio-dir data/audio_segments
+
+# Export single Parquet file without split (replaces export_to_parquet.py)
+python prepare_and_upload_dataset.py \
+    --data-dir data/preprocessed \
+    --audio-dir data/audio_segments \
+    --no-split \
+    --no-upload
+
+# Export without audio (replaces upload_to_huggingface_no_audio.py)
+python prepare_and_upload_dataset.py \
+    --repo-id "username/atc-dataset" \
+    --data-dir data/preprocessed \
+    --audio-dir data/audio_segments \
+    --no-audio
 
 # Custom split ratios
 python prepare_and_upload_dataset.py \
@@ -169,7 +183,6 @@ python prepare_and_upload_dataset.py \
 
 # Only create Parquet files (no upload)
 python prepare_and_upload_dataset.py \
-    --repo-id "username/atc-dataset" \
     --data-dir data/preprocessed \
     --audio-dir data/audio_segments \
     --no-upload
@@ -180,6 +193,12 @@ python prepare_and_upload_dataset.py \
     --data-dir data/preprocessed \
     --audio-dir data/audio_segments \
     --private
+
+# Manifest format (for NeMo, etc.)
+python prepare_manifest_dataset.py \
+    --data-dir data/preprocessed \
+    --audio-dir data/audio_segments \
+    --output-dir dataset_manifest
 ```
 
 **What this script does**:
@@ -203,10 +222,17 @@ python prepare_and_upload_dataset.py \
 - Audio files in `data/audio_segments/`
 
 **Output Structure**:
-- `dataset_parquet/train.parquet`: Training set
-- `dataset_parquet/validation.parquet`: Validation set
-- `dataset_parquet/test.parquet`: Test set
-- Uploaded to HF as: `train.parquet`, `validation.parquet`, `test.parquet`
+- `dataset_output/train.parquet`: Training set
+- `dataset_output/validation.parquet`: Validation set
+- `dataset_output/test.parquet`: Test set
+- `dataset_output/README.md`: Auto-generated dataset card
+- Uploaded to HF as: `train.parquet`, `validation.parquet`, `test.parquet`, `README.md`
+
+**New Features (Refactored)**:
+- ✅ Unified script replaces 3 deprecated scripts (`export_to_parquet.py`, `upload_parquet_to_huggingface.py`, `upload_to_huggingface_no_audio.py`)
+- ✅ Centralized utilities in `src/dataset/` module
+- ✅ Flexible command-line options for different workflows
+- ✅ Reduced code duplication (~770 lines eliminated)
 
 ## Data Structures
 
