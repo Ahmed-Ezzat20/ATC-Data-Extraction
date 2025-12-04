@@ -87,16 +87,96 @@ class ATCTextNormalizer:
         r'\[CLEARANCE\]',
     ]
 
+    # Contraction expansions (applied before punctuation removal)
+    CONTRACTIONS = {
+        # Common contractions
+        "I'M": "I AM",
+        "I'VE": "I HAVE",
+        "I'LL": "I WILL",
+        "I'D": "I WOULD",
+        "YOU'RE": "YOU ARE",
+        "YOU'VE": "YOU HAVE",
+        "YOU'LL": "YOU WILL",
+        "YOU'D": "YOU WOULD",
+        "HE'S": "HE IS",
+        "HE'LL": "HE WILL",
+        "HE'D": "HE WOULD",
+        "SHE'S": "SHE IS",
+        "SHE'LL": "SHE WILL",
+        "SHE'D": "SHE WOULD",
+        "IT'S": "IT IS",
+        "IT'LL": "IT WILL",
+        "IT'D": "IT WOULD",
+        "WE'RE": "WE ARE",
+        "WE'VE": "WE HAVE",
+        "WE'LL": "WE WILL",
+        "WE'D": "WE WOULD",
+        "THEY'RE": "THEY ARE",
+        "THEY'VE": "THEY HAVE",
+        "THEY'LL": "THEY WILL",
+        "THEY'D": "THEY WOULD",
+        "THAT'S": "THAT IS",
+        "THAT'LL": "THAT WILL",
+        "THAT'D": "THAT WOULD",
+        "WHO'S": "WHO IS",
+        "WHO'LL": "WHO WILL",
+        "WHO'D": "WHO WOULD",
+        "WHAT'S": "WHAT IS",
+        "WHAT'LL": "WHAT WILL",
+        "WHAT'D": "WHAT WOULD",
+        "WHERE'S": "WHERE IS",
+        "WHERE'LL": "WHERE WILL",
+        "WHERE'D": "WHERE WOULD",
+        "WHEN'S": "WHEN IS",
+        "WHEN'LL": "WHEN WILL",
+        "WHEN'D": "WHEN WOULD",
+        "WHY'S": "WHY IS",
+        "WHY'LL": "WHY WILL",
+        "WHY'D": "WHY WOULD",
+        "HOW'S": "HOW IS",
+        "HOW'LL": "HOW WILL",
+        "HOW'D": "HOW WOULD",
+        # Negative contractions
+        "CAN'T": "CANNOT",
+        "WON'T": "WILL NOT",
+        "DON'T": "DO NOT",
+        "DOESN'T": "DOES NOT",
+        "DIDN'T": "DID NOT",
+        "HAVEN'T": "HAVE NOT",
+        "HASN'T": "HAS NOT",
+        "HADN'T": "HAD NOT",
+        "AREN'T": "ARE NOT",
+        "ISN'T": "IS NOT",
+        "WASN'T": "WAS NOT",
+        "WEREN'T": "WERE NOT",
+        "SHOULDN'T": "SHOULD NOT",
+        "WOULDN'T": "WOULD NOT",
+        "COULDN'T": "COULD NOT",
+        "MIGHTN'T": "MIGHT NOT",
+        "MUSTN'T": "MUST NOT",
+        "NEEDN'T": "NEED NOT",
+        # Modal contractions
+        "'LL": "WILL",
+        "'VE": "HAVE",
+        "'RE": "ARE",
+        "'D": "WOULD",
+        # Other common forms
+        "LET'S": "LET US",
+        "AIN'T": "IS NOT",
+    }
+
     def __init__(
         self,
         apply_spelling_corrections: bool = True,
         normalize_diacritics: bool = True,
         expand_phonetic_letters: bool = True,
         expand_numbers: bool = True,
+        expand_contractions: bool = True,
         uppercase: bool = True,
         remove_tags: bool = True,
         remove_punctuation: bool = True,
-        custom_corrections: Optional[Dict[str, str]] = None
+        custom_corrections: Optional[Dict[str, str]] = None,
+        custom_contractions: Optional[Dict[str, str]] = None
     ):
         """
         Initialize the ATC text normalizer.
@@ -106,15 +186,18 @@ class ATCTextNormalizer:
             normalize_diacritics: Remove diacritics (accents)
             expand_phonetic_letters: Convert single letters to NATO phonetic
             expand_numbers: Convert digits to words
+            expand_contractions: Expand contractions (e.g., I'M -> I AM)
             uppercase: Convert all text to uppercase
             remove_tags: Remove non-critical tags
             remove_punctuation: Remove punctuation marks
             custom_corrections: Additional custom spelling corrections
+            custom_contractions: Additional custom contraction expansions
         """
         self.apply_spelling_corrections = apply_spelling_corrections
         self.normalize_diacritics = normalize_diacritics
         self.expand_phonetic_letters = expand_phonetic_letters
         self.expand_numbers = expand_numbers
+        self.expand_contractions = expand_contractions
         self.uppercase = uppercase
         self.remove_tags = remove_tags
         self.remove_punctuation = remove_punctuation
@@ -123,6 +206,11 @@ class ATCTextNormalizer:
         self.spelling_corrections = self.SPELLING_CORRECTIONS.copy()
         if custom_corrections:
             self.spelling_corrections.update(custom_corrections)
+        
+        # Merge custom contractions
+        self.contractions = self.CONTRACTIONS.copy()
+        if custom_contractions:
+            self.contractions.update(custom_contractions)
 
     def normalize_text(self, text: str) -> str:
         """
@@ -157,15 +245,19 @@ class ATCTextNormalizer:
         if self.expand_numbers:
             text = self._expand_numbers(text)
 
-        # 6. Apply spelling corrections
+        # 6. Expand contractions (before punctuation removal)
+        if self.expand_contractions:
+            text = self._expand_contractions(text)
+
+        # 7. Apply spelling corrections
         if self.apply_spelling_corrections:
             text = self._apply_spelling_corrections(text)
 
-        # 7. Remove punctuation
+        # 8. Remove punctuation
         if self.remove_punctuation:
             text = self._remove_punctuation(text)
 
-        # 8. Clean up extra whitespace
+        # 9. Clean up extra whitespace
         text = self._clean_whitespace(text)
 
         return text
@@ -272,6 +364,43 @@ class ATCTextNormalizer:
         # This prevents matching periods that are just punctuation (e.g., "118.")
         text = re.sub(r'\d+\.\d+|\d+', expand_number_match, text)
         return text
+
+    def _expand_contractions(self, text: str) -> str:
+        """
+        Expand contractions to their full forms.
+
+        Examples:
+        - "I'M" -> "I AM"
+        - "CAN'T" -> "CANNOT"
+        - "WE'RE" -> "WE ARE"
+
+        Note: Possessives (e.g., "PILOT'S") are preserved and handled
+        by punctuation removal later.
+
+        Args:
+            text: Input text
+
+        Returns:
+            Text with contractions expanded
+        """
+        words = text.split()
+        expanded = []
+
+        for word in words:
+            # Check if word is a known contraction
+            if word in self.contractions:
+                expanded.append(self.contractions[word])
+            # Check for possessives (word ending in 'S after removing apostrophe)
+            # These should NOT be expanded (e.g., PILOT'S should stay as is)
+            elif "'S" in word and word.endswith("'S"):
+                # This is likely a possessive, not a contraction
+                # Keep it as is for now (punctuation removal will handle it)
+                expanded.append(word)
+            else:
+                # Not a contraction, keep as is
+                expanded.append(word)
+
+        return ' '.join(expanded)
 
     def _apply_spelling_corrections(self, text: str) -> str:
         """
