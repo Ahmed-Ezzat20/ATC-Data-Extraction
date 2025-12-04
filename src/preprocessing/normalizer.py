@@ -298,6 +298,9 @@ class ATCTextNormalizer:
         Handles patterns like:
         - "N 1 2 3" → "NOVEMBER ONE TWO THREE"
         - "RUNWAY 2 7 L" → "RUNWAY TWO SEVEN LEFT"
+        - "B6" → "BRAVO 6" (taxiway/gate identifiers)
+        - "C4" → "CHARLIE 4" (taxiway/gate identifiers)
+        - "C," → "CHARLIE," (handles punctuation)
 
         Args:
             text: Input text
@@ -311,21 +314,46 @@ class ATCTextNormalizer:
         result = []
 
         for word in words:
+            # Strip trailing punctuation for pattern matching, but preserve it
+            trailing_punct = ''
+            clean_word = word
+            while clean_word and not clean_word[-1].isalnum():
+                trailing_punct = clean_word[-1] + trailing_punct
+                clean_word = clean_word[:-1]
+            
+            if not clean_word:
+                result.append(word)
+                continue
+            
             # Only expand single-letter words
-            if len(word) == 1 and word.isalpha() and word.upper() in self.PHONETIC_ALPHABET:
-                result.append(self.PHONETIC_ALPHABET[word.upper()])
+            if len(clean_word) == 1 and clean_word.isalpha() and clean_word.upper() in self.PHONETIC_ALPHABET:
+                result.append(self.PHONETIC_ALPHABET[clean_word.upper()] + trailing_punct)
             # Handle runway designators like "27L", "09R"
-            elif re.match(r'^\d{2}[LRC]$', word):
+            elif re.match(r'^\d{2}[LRC]$', clean_word):
                 # Keep the numbers, expand the letter
-                numbers = word[:2]
-                letter = word[2]
+                numbers = clean_word[:2]
+                letter = clean_word[2]
                 letter_word = {
                     'L': 'LEFT',
                     'R': 'RIGHT',
                     'C': 'CENTER'
                 }.get(letter, letter)
                 # Will be processed by number expansion later
-                result.append(numbers + ' ' + letter_word)
+                result.append(numbers + ' ' + letter_word + trailing_punct)
+            # Handle alphanumeric identifiers like "B6", "C4", "A12" (taxiway/gate)
+            # Pattern: Single letter followed by one or more digits
+            elif re.match(r'^[A-Z]\d+$', clean_word):
+                letter = clean_word[0]
+                numbers = clean_word[1:]
+                # Expand letter to phonetic, keep numbers for later expansion
+                phonetic = self.PHONETIC_ALPHABET.get(letter, letter)
+                result.append(phonetic + ' ' + numbers + trailing_punct)
+            # Handle reverse pattern: digits followed by single letter (e.g., "6B")
+            elif re.match(r'^\d+[A-Z]$', clean_word):
+                numbers = clean_word[:-1]
+                letter = clean_word[-1]
+                phonetic = self.PHONETIC_ALPHABET.get(letter, letter)
+                result.append(numbers + ' ' + phonetic + trailing_punct)
             else:
                 result.append(word)
 
