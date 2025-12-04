@@ -311,6 +311,10 @@ class ATCTextNormalizer:
         - "B6" → "BRAVO 6" (taxiway/gate identifiers)
         - "C4" → "CHARLIE 4" (taxiway/gate identifiers)
         - "C," → "CHARLIE," (handles punctuation)
+        
+        Excludes common English words:
+        - "I" (pronoun) - NOT expanded to INDIA
+        - "A" (article) - NOT expanded to ALPHA
 
         Args:
             text: Input text
@@ -318,6 +322,10 @@ class ATCTextNormalizer:
         Returns:
             Text with letters expanded
         """
+        # Whitelist of common English words that should NOT be expanded
+        # even if they are single letters
+        EXCLUDED_WORDS = {'I', 'A'}
+        
         # Pattern: single letter surrounded by spaces or at boundaries
         # But avoid expanding letters in known words
         words = text.split()
@@ -335,9 +343,13 @@ class ATCTextNormalizer:
                 result.append(word)
                 continue
             
-            # Only expand single-letter words
+            # Only expand single-letter words (excluding common English words)
             if len(clean_word) == 1 and clean_word.isalpha() and clean_word.upper() in self.PHONETIC_ALPHABET:
-                result.append(self.PHONETIC_ALPHABET[clean_word.upper()] + trailing_punct)
+                # Check if this is a common English word that should NOT be expanded
+                if clean_word.upper() in EXCLUDED_WORDS:
+                    result.append(word)  # Keep original (with punctuation)
+                else:
+                    result.append(self.PHONETIC_ALPHABET[clean_word.upper()] + trailing_punct)
             # Handle runway designators like "27L", "09R"
             elif re.match(r'^\d{2}[LRC]$', clean_word):
                 # Keep the numbers, expand the letter

@@ -79,6 +79,39 @@ class TestConfigurableCaseHandling(unittest.TestCase):
         # L should be expanded to LEFT (not LIMA in this context)
         self.assertIn("LEFT", result_upper)
         self.assertIn("left", result_lower)
+    
+    def test_excluded_words_pronoun_i(self):
+        """Test that pronoun 'I' is not expanded to INDIA."""
+        normalizer = ATCTextNormalizer()
+        result = normalizer.normalize_text("I am ready for takeoff")
+        self.assertIn("I AM", result)
+        self.assertNotIn("INDIA", result)
+    
+    def test_excluded_words_article_a(self):
+        """Test that article 'A' is not expanded to ALPHA."""
+        normalizer = ATCTextNormalizer()
+        result = normalizer.normalize_text("You might be a few minutes early")
+        self.assertIn("A FEW", result)
+        self.assertNotIn("ALPHA", result)
+    
+    def test_excluded_words_in_context(self):
+        """Test excluded words in realistic ATC context."""
+        normalizer = ATCTextNormalizer()
+        result = normalizer.normalize_text("I see a plane on final")
+        self.assertIn("I SEE A PLANE", result)
+        self.assertNotIn("INDIA", result)
+        self.assertNotIn("ALPHA", result)
+    
+    def test_second_sample_from_dataset(self):
+        """Test the second sample from the actual dataset."""
+        normalizer = ATCTextNormalizer()
+        text = "MMM... I DON'T HAVE ANYTHING FOR YOU YET. YOU MIGHT BE A FEW MINUTES EARLY."
+        result = normalizer.normalize_text(text)
+        # Verify correct transformations
+        self.assertIn("I DO NOT", result)  # Contraction expanded
+        self.assertIn("A FEW", result)  # Article 'A' preserved
+        self.assertNotIn("INDIA", result)  # 'I' not expanded
+        self.assertNotIn("ALPHA", result)  # 'A' not expanded
 
 
 class TestAudioQualityMetrics(unittest.TestCase):
