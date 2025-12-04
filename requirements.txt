@@ -17,3 +17,7 @@ python-dotenv>=1.0.0
 
 # Parquet export
 pyarrow>=14.0.0
+
+# Audio quality metrics
+librosa>=0.10.0
+langdetect>=1.0.9

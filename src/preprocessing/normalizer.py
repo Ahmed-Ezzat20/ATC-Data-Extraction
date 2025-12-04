@@ -175,8 +175,9 @@ class ATCTextNormalizer:
         uppercase: bool = True,
         remove_tags: bool = True,
         remove_punctuation: bool = True,
+        output_case: str = "upper",
         custom_corrections: Optional[Dict[str, str]] = None,
-        custom_contractions: Optional[Dict[str, str]] = None
+        custom_contractions: Optional[Dict[str, str]] = None,
     ):
         """
         Initialize the ATC text normalizer.
@@ -190,6 +191,7 @@ class ATCTextNormalizer:
             uppercase: Convert all text to uppercase
             remove_tags: Remove non-critical tags
             remove_punctuation: Remove punctuation marks
+            output_case: Final case handling ('upper', 'lower', 'preserve')
             custom_corrections: Additional custom spelling corrections
             custom_contractions: Additional custom contraction expansions
         """
@@ -201,6 +203,7 @@ class ATCTextNormalizer:
         self.uppercase = uppercase
         self.remove_tags = remove_tags
         self.remove_punctuation = remove_punctuation
+        self.output_case = output_case.lower() if output_case else "upper"
 
         # Merge custom corrections
         self.spelling_corrections = self.SPELLING_CORRECTIONS.copy()
@@ -257,8 +260,15 @@ class ATCTextNormalizer:
         if self.remove_punctuation:
             text = self._remove_punctuation(text)
 
-        # 9. Clean up extra whitespace
+        # 9. Normalize whitespace
         text = self._clean_whitespace(text)
+
+        # 10. Final case handling (overrides uppercase setting if needed)
+        if self.output_case == "lower":
+            text = text.lower()
+        elif self.output_case == "upper":
+            text = text.upper()
+        # else: "preserve" - keep as-is
 
         return text
 

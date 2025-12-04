@@ -19,3 +19,13 @@ paths:
   visualizations: data/visualizations
   logs: logs
   checkpoints: data/checkpoints
+
+normalization:
+  output_case: "upper"  # Options: upper, lower, preserve
+
+quality_filtering:
+  enabled: true
+  min_snr_db: 15.0  # Minimum Signal-to-Noise Ratio in dB (FAA minimum: 10 dB)
+  required_language: "en"  # Required language code
+  min_language_confidence: 0.8  # Minimum language detection confidence (0.0-1.0)
+  min_speech_ratio: 0.6  # Minimum ratio of speech to total audio (0.0-1.0)
