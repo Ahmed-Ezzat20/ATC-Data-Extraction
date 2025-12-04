@@ -13,9 +13,10 @@ The `ATCTextNormalizer` class performs the following transformations:
 3. **Tag Removal**: Removes non-critical speaker/context tags (e.g., [GROUND], [AIR])
 4. **Phonetic Letter Expansion**: Converts single letters to NATO phonetic alphabet
 5. **Number Expansion**: Converts digits to words (digit-by-digit)
-6. **Spelling Corrections**: Fixes common ATC terminology misspellings
-7. **Punctuation Removal**: Removes all punctuation marks (e.g., commas, periods, exclamation marks)
-8. **Whitespace Cleanup**: Normalizes spacing
+6. **Contraction Expansion**: Expands contractions to full forms (e.g., "I'M" → "I AM", "CAN'T" → "CANNOT")
+7. **Spelling Corrections**: Fixes common ATC terminology misspellings
+8. **Punctuation Removal**: Removes all punctuation marks (e.g., commas, periods, exclamation marks)
+9. **Whitespace Cleanup**: Normalizes spacing
 
 ### Transmission Filtering (`filters.py`)
 
@@ -54,7 +55,13 @@ normalized = normalizer.normalize_text(text)
 print(normalized)
 # Output: RUNWAY TWO SEVEN LEFT TAXI VIA ALPHA
 
-# Example 4: Punctuation removal
+# Example 4: Contraction expansion
+text = "I'm ready for takeoff and we're cleared"
+normalized = normalizer.normalize_text(text)
+print(normalized)
+# Output: I AM READY FOR TAKEOFF AND WE ARE CLEARED
+
+# Example 5: Punctuation removal
 text = "American 123, contact tower on 118.3!"
 normalized = normalizer.normalize_text(text)
 print(normalized)
@@ -68,8 +75,18 @@ print(normalized)
 normalizer = ATCTextNormalizer(
     expand_phonetic_letters=False,  # Keep single letters as-is
     expand_numbers=False,            # Keep numbers as-is
+    expand_contractions=False,       # Keep contractions as-is
     remove_punctuation=False,        # Keep punctuation
     uppercase=False                  # Preserve original case
+)
+
+# Add custom contractions
+normalizer = ATCTextNormalizer(
+    custom_contractions={
+        "GONNA": "GOING TO",
+        "WANNA": "WANT TO",
+        "GOTTA": "GOT TO"
+    }
 )
 ```
 
@@ -177,6 +194,43 @@ Runway designators like "27L", "09R" are handled specially:
 
 **Note**: Separate words "2 7 L" → "TWO SEVEN LIMA" (L is treated as single letter)
 
+### Contraction Expansion
+
+Contractions are expanded to their full forms before punctuation removal:
+
+**Common Contractions**:
+
+| Contraction | Expansion |
+|-------------|----------|
+| I'M | I AM |
+| YOU'RE | YOU ARE |
+| HE'S | HE IS |
+| WE'LL | WE WILL |
+| THEY'VE | THEY HAVE |
+| IT'D | IT WOULD |
+
+**Negative Contractions**:
+
+| Contraction | Expansion |
+|-------------|----------|
+| CAN'T | CANNOT |
+| WON'T | WILL NOT |
+| DON'T | DO NOT |
+| ISN'T | IS NOT |
+| SHOULDN'T | SHOULD NOT |
+| COULDN'T | COULD NOT |
+
+**Special Cases**:
+- **Possessives**: "PILOT'S" → "PILOTS" (apostrophe removed, not expanded)
+- **Contractions**: "IT'S" → "IT IS" (properly expanded)
+- **Total**: 70+ contractions supported
+
+**Examples**:
+- "I'm ready for takeoff" → "I AM READY FOR TAKEOFF"
+- "We're cleared to land" → "WE ARE CLEARED TO LAND"
+- "Can't hear you" → "CANNOT HEAR YOU"
+- "The pilot's ready" → "THE PILOTS READY" (possessive preserved)
+
 ### Spelling Corrections
 
 Common ATC misspellings are corrected:
@@ -272,6 +326,7 @@ python preprocess_data.py --data-dir data --output-dir data/preprocessed
 python preprocess_data.py --data-dir data \
     --no-phonetic-expansion \
     --no-number-expansion \
+    --no-contraction-expansion \
     --no-punctuation-removal
 
 # Custom filtering
