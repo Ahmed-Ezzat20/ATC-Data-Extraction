@@ -231,6 +231,9 @@ class ATCTextNormalizer:
         # 1. Convert to uppercase first (makes pattern matching easier)
         if self.uppercase:
             text = text.upper()
+        
+        # 1.5. Preprocess special patterns (before other transformations)
+        text = self._preprocess_special_patterns(text)
 
         # 2. Normalize diacritics
         if self.normalize_diacritics:
@@ -270,6 +273,107 @@ class ATCTextNormalizer:
             text = text.upper()
         # else: "preserve" - keep as-is
 
+        return text
+
+    def _preprocess_special_patterns(self, text: str) -> str:
+        """
+        Preprocess special patterns before main normalization.
+        
+        Handles:
+        - Arrow notation (-> or <-) - removed or converted to TO
+        - Numbers with commas (3,000 → 3000)
+        - Callsigns with alphanumeric patterns (GPD848 → GPD 848)
+        
+        Args:
+            text: Input text
+            
+        Returns:
+            Text with special patterns preprocessed
+        """
+        # Remove or convert arrow notation
+        text = re.sub(r'\s*->\s*', ' TO ', text)
+        text = re.sub(r'\s*<-\s*', ' FROM ', text)
+        
+        # Handle numbers with thousands separator
+        # Convert round thousands to word form before removing comma
+        # 3,000 → THREE THOUSAND, 10,000 → TEN THOUSAND
+        def expand_thousands(match):
+            thousands = match.group(1)
+            # Convert single digit to word
+            digit_words = {'1': 'ONE', '2': 'TWO', '3': 'THREE', '4': 'FOUR', 
+                          '5': 'FIVE', '6': 'SIX', '7': 'SEVEN', '8': 'EIGHT', '9': 'NINE'}
+            if len(thousands) == 1:
+                return digit_words.get(thousands, thousands) + ' THOUSAND'
+            elif len(thousands) == 2:
+                # 10,000 → TEN THOUSAND, 15,000 → FIFTEEN THOUSAND
+                tens_words = {'10': 'TEN', '11': 'ELEVEN', '12': 'TWELVE', '13': 'THIRTEEN',
+                             '14': 'FOURTEEN', '15': 'FIFTEEN', '16': 'SIXTEEN', '17': 'SEVENTEEN',
+                             '18': 'EIGHTEEN', '19': 'NINETEEN', '20': 'TWENTY', '30': 'THIRTY',
+                             '40': 'FORTY', '50': 'FIFTY', '60': 'SIXTY', '70': 'SEVENTY',
+                             '80': 'EIGHTY', '90': 'NINETY'}
+                if thousands in tens_words:
+                    return tens_words[thousands] + ' THOUSAND'
+                else:
+                    # For non-standard thousands, just remove comma
+                    return thousands + '000'
+            else:
+                # For larger numbers, just remove comma
+                return thousands + '000'
+        
+        # Match patterns like 3,000 or 10,000 (round thousands)
+        text = re.sub(r'\b(\d{1,2}),000\b', expand_thousands, text)
+        
+        # Remove remaining commas from numbers
+        text = re.sub(r'(\d+),(\d{3})', r'\1\2', text)
+        
+        # Handle aircraft type codes with hyphens (PC-12, MD-80, B-747)
+        # Convert hyphen to space before other processing
+        # PC-12 → PC 12, MD-80 → MD 80
+        text = re.sub(r'\b([A-Z]{1,3})-(\d{1,3})\b', r'\1 \2', text)
+        
+        # Handle callsigns with mixed letters and digits (N0KW, N123AB)
+        # Pattern: Letter(s) + digit(s) + letter(s)
+        # Examples: N0KW → N 0 K W, N123AB → N 1 2 3 A B
+        def expand_mixed_callsign(match):
+            prefix = match.group(1)  # Leading letter(s)
+            middle = match.group(2)  # Digits
+            suffix = match.group(3)  # Trailing letters
+            # Space out all components
+            spaced_prefix = ' '.join(prefix) if prefix else ''
+            spaced_middle = ' '.join(middle)
+            spaced_suffix = ' '.join(suffix) if suffix else ''
+            parts = [p for p in [spaced_prefix, spaced_middle, spaced_suffix] if p]
+            return ' '.join(parts)
+        
+        # Match: 1-2 letters, 1-4 digits, 1-3 letters (e.g., N0KW, N123AB)
+        text = re.sub(r'\b([A-Z]{1,2})(\d{1,4})([A-Z]{1,3})\b', expand_mixed_callsign, text)
+        
+        # Handle alphanumeric callsigns: add spaces between each component
+        # Pattern: 1-4 uppercase letters followed by 2-4 digits
+        # Examples: GPD848 → G P D 8 4 8, WUP325 → W U P 3 2 5, C56 → C 5 6
+        def expand_callsign(match):
+            letters = match.group(1)
+            numbers = match.group(2)
+            # Add spaces between letters
+            spaced_letters = ' '.join(letters)
+            # Add spaces between digits
+            spaced_numbers = ' '.join(numbers)
+            return spaced_letters + ' ' + spaced_numbers
+        
+        text = re.sub(r'\b([A-Z]{1,4})(\d{2,4})\b', expand_callsign, text)
+        
+        # Handle callsigns with trailing letter: add spaces
+        # Examples: GPD848X → G P D 8 4 8 X, WUP325A → W U P 3 2 5 A, C56X → C 5 6 X
+        def expand_callsign_with_suffix(match):
+            letters = match.group(1)
+            numbers = match.group(2)
+            suffix = match.group(3)
+            spaced_letters = ' '.join(letters)
+            spaced_numbers = ' '.join(numbers)
+            return spaced_letters + ' ' + spaced_numbers + ' ' + suffix
+        
+        text = re.sub(r'\b([A-Z]{1,4})(\d{2,4})([A-Z])\b', expand_callsign_with_suffix, text)
+        
         return text
 
     def _remove_diacritics(self, text: str) -> str:
